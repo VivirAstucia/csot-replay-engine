@@ -5,7 +5,7 @@
     constexpr inline double INV_64 = 1.0/64.0;
     constexpr inline double epsilon = 1e-9;
 
-    struct state {
+    struct alignas(64) state {
         double mids[64] = {0.0};
         double sum = 0.0;
         double sq_sum = 0.0;
@@ -13,6 +13,8 @@
         uint32_t head = 0;
         int32_t position = 0; // {-1,0,1}
     };
+
+    std::vector<csot::Order> orders;
 
     class spec_strategy final : public csot::Strategy {
         public:
@@ -46,28 +48,28 @@
 
                 const double mean = s.sum*INV_64;
                 const double var = s.sq_sum*INV_64 - mean*mean;
-                const double stddev = std::sqrt(var);
-                // const double stddev = 1;
+                const double diff2 = (mid - mean)*(mid - mean);
 
-                if (stddev < epsilon) [[unlikely]] return orders;
+                if (var < epsilon) [[unlikely]] return orders;
                 
-                const double z_score = (mid-mean)/stddev;
 
                 if (s.position == 0) {
-                    if (z_score >= 2.0) {
-                        orders.push_back({csot::Order::Side::SELL, tick.symbol, tick.bid_px, 1});
-                    }
-                    else if (z_score <= -2.0) {
-                        orders.push_back({csot::Order::Side::BUY, tick.symbol, tick.ask_px, 1});
+                    if (diff2 >= 4.0*var) [[unlikely]] {
+                        if (mid > mean) {
+                            orders.emplace_back(csot::Order::Side::SELL, tick.symbol, tick.bid_px, 1);
+                        }
+                        else {
+                            orders.emplace_back(csot::Order::Side::BUY, tick.symbol, tick.ask_px, 1);
+                        }
                     }
                     return orders;
                 }
-                else if (abs(z_score) <= 0.5) {
+                else if (diff2 <= 0.25*var) {
                     if (s.position == 1) {
-                        orders.push_back({csot::Order::Side::SELL, tick.symbol, tick.bid_px, 1});
+                        orders.emplace_back(csot::Order::Side::SELL, tick.symbol, tick.bid_px, 1);
                     }
                     else {
-                        orders.push_back({csot::Order::Side::BUY, tick.symbol, tick.ask_px, 1});
+                        orders.emplace_back(csot::Order::Side::BUY, tick.symbol, tick.ask_px, 1);
                     }
                     return orders;
                 }
@@ -98,8 +100,6 @@
                 symbols[slot] = s;
                 return slot;
             }
-
-            inline static thread_local std::vector<csot::Order> orders;
     };
 
     extern "C" csot::Strategy* create_strategy() {
