@@ -8,32 +8,56 @@
 namespace csot {
     Engine::Engine() = default; 
 
+    template<typename T>
+    inline const char* parse_value(const char *ptr, const char *end, T& value) {
+        auto [nptr, _] = std::from_chars(ptr, end, value);
+        if (nptr < end && *nptr == ',') {
+            nptr++;
+        }
+        return nptr;
+    }
 
     void Engine::load_ticks(std::string csv_path) {
-        std::ifstream file(csv_path);
+        std::ifstream file(csv_path, std::ios::binary | std::ios::ate);
         if (!file) {
             std::cerr << "Can't open csv: " << csv_path << std::endl;
             return;
         }
-        
-        std::string line;
-        std::getline(file, line);
-        while (std::getline(file, line)) {
-            std::stringstream stream(line);
-            std::string timestamp, symbol, bid_px, ask_px, bid_qty, ask_qty;
-            std::getline(stream, timestamp, ',');
-            std::getline(stream, symbol, ',');
-            std::getline(stream, bid_px, ',');
-            std::getline(stream, ask_px, ',');
-            std::getline(stream, bid_qty, ',');
-            std::getline(stream, ask_qty, ',');
-            
-            std::string_view sv = DEFAULT_SYMBOLS[(symbol[3]-'0')];
 
-            ticks.emplace_back(
-                std::stoull(timestamp), sv, 
-                std::stod(bid_px), std::stod(ask_px), std::stoul(bid_qty), std::stoul(ask_qty)
-            );
+        int64_t chr_cnt = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        std::vector<char> buffer(chr_cnt);
+        if (!file.read(buffer.data(), chr_cnt)) {
+            std::cerr << "Can't read csv: " << csv_path << std::endl;
+            return;
+        }
+        
+        const char *ptr = buffer.data();
+        const char *end = buffer.data() + chr_cnt;
+
+        while (ptr<end && *ptr != '\n') ptr++;
+        ptr++;
+
+        // ticks.reserve(1000000); // Or one can use file size to estimate the number of ticks.
+
+        Tick tick;
+        while (ptr < end) {
+            ptr = parse_value(ptr, end, tick.timestamp_ns);
+
+            const char *start = ptr;
+            tick.symbol = DEFAULT_SYMBOLS[start[3] - '0'];
+            while (*ptr!=',')ptr++;
+            ptr++;
+
+            ptr = parse_value(ptr, end, tick.bid_px);
+            ptr = parse_value(ptr, end, tick.ask_px);
+            ptr = parse_value(ptr, end, tick.bid_qty);
+            ptr = parse_value(ptr, end, tick.ask_qty);
+
+            while (ptr<end && (*ptr == '\n' || *ptr=='\r')) ptr++;
+
+            ticks.emplace_back(tick);
         }
     }
 

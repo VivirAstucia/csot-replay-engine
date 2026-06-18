@@ -30,7 +30,7 @@ cmake --build build -j
 | CPU Frequency |   1700 MHz |
 | Count         | 10,000,000 |
 | p50           |    ≤ 16 ns |
-| p90           |    ≤ 16 ns |
+| p90           |    ≤ 32 ns |
 | p99           |    ≤ 32 ns |
 | p999          |   ≤ 128 ns |
 

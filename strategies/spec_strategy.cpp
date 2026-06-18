@@ -2,7 +2,7 @@
 
 constexpr int32_t MAX_SYMBOLS = 4;
 
-struct alignas(64) state {
+struct alignas(32) state {
     int64_t sum = 0;
     int64_t sq_sum = 0;
     uint32_t count = 0;
@@ -86,6 +86,10 @@ class spec_strategy final : public csot::Strategy {
         inline int32_t sti(const std::string_view& s) {
             #pragma GCC unroll 4
             for(int32_t i=0; i<symbolc; i++) {
+                // if (i >= MAX_SYMBOLS) [[unlikely]] {
+                //     std::cerr << "Too many symbols!" << std::endl;
+                //     // std::terminate();
+                // }
                 if (symbols[i].data() == s.data()) [[likely]] {
                     return i;
                 }
